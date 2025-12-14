@@ -1,0 +1,109 @@
+k<!DOCTYPE html>
+<html>
+<head>
+    <title>KALI SHIELD - CYBER DEFENSE</title>
+    <style>
+        body { background: #0a0a0a; color: #00ff41; font-family: 'Courier New', monospace; padding: 20px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { border: 1px solid #00ff41; padding: 15px; background: #000; box-shadow: 0 0 8px #00ff4144; }
+        h2 { border-bottom: 1px solid #00ff41; padding-bottom: 10px; margin-top: 0; font-size: 1.2em; }
+        table { width: 100%; font-size: 11px; border-collapse: collapse; }
+        th { text-align: left; color: #00bcd4; padding: 5px; }
+        td { padding: 5px; border-bottom: 1px solid #1a1a1a; }
+        .loc-tag { color: #ff9d00; font-weight: bold; }
+        input { background: #111; border: 1px solid #00ff41; color: #00ff41; padding: 5px; width: 60px; }
+        button { background: #00ff41; color: #000; border: none; padding: 6px 10px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #fff; }
+        .btn-deny { background: #ff003c; color: white; }
+        #log-box { background: #050505; color: #008f11; padding: 10px; height: 120px; overflow-y: auto; font-size: 11px; margin-top: 20px; border: 1px solid #333; line-height: 1.4; }
+    </style>
+</head>
+<body>
+    <h1 style="text-align:center;">🛡️ KALI SHIELD: ADVANCED DEFENSE SYSTEM</h1>
+    
+    <div class="grid">
+        <div class="card">
+            <h2>🔥 FIREWALL CONTROL</h2>
+            <input type="number" id="port-num" placeholder="Port">
+            <button onclick="fw('block')">BLOCK PORT</button>
+            <button onclick="fw('unblock')" style="background:#444; color:white;">UNBLOCK</button>
+            <p id="fw-status" style="font-size: 10px; color: #888;"></p>
+        </div>
+
+        <div class="card">
+            <h2>📡 TRAFFIC & GEOLOCATION</h2>
+            <table>
+                <thead>
+                    <tr><th>SOURCE IP</th><th>LOCATION</th><th>PORT</th></tr>
+                </thead>
+                <tbody id="traffic-body"></tbody>
+            </table>
+        </div>
+
+        <div class="card" style="grid-column: span 2;">
+            <h2>🔌 USB HARDWARE SECURITY</h2>
+            <table>
+                <thead>
+                    <tr><th>ID</th><th>PRODUCT NAME</th><th>STATUS</th><th>ACTION</th></tr>
+                </thead>
+                <tbody id="usb-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="log-box">System Initialized... Waiting for events.</div>
+
+    <script>
+        function fw(action) {
+            const port = document.getElementById('port-num').value;
+            fetch('/api/firewall', {
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({port: port, action: action})
+            }).then(r => r.json()).then(d => { document.getElementById('fw-status').innerText = d.message; });
+        }
+
+        function updateData() {
+            // Update Traffic
+            fetch('/api/traffic').then(r => r.json()).then(data => {
+                const b = document.getElementById('traffic-body');
+                b.innerHTML = data.slice(-8).map(p => `
+                    <tr>
+                        <td>${p.src}</td>
+                        <td class="loc-tag">${p.loc}</td>
+                        <td>${p.port}</td>
+                    </tr>`).join('');
+            });
+
+            // Update USB
+            fetch('/api/usb').then(r => r.json()).then(data => {
+                const b = document.getElementById('usb-body');
+                b.innerHTML = data.map(d => `
+                    <tr>
+                        <td>${d.id}</td>
+                        <td>${d.name}</td>
+                        <td style="color:${d.status=='Active'?'#00ff41':'#ff003c'}">${d.status}</td>
+                        <td><button class="${d.status=='Active'?'btn-deny':''}" onclick="usbCtrl('${d.id}','${d.status=='Active'?'block':'unblock'}')">
+                        ${d.status=='Active'?'DISABLE':'ENABLE'}</button></td>
+                    </tr>`).join('');
+            });
+
+            // Update Logs
+            fetch('/api/logs').then(r => r.json()).then(data => {
+                document.getElementById('log-box').innerHTML = data.reverse().join('<br>');
+            });
+        }
+
+        function usbCtrl(id, action) {
+            fetch('/api/usb_control', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: id, action: action})
+            }).then(() => updateData());
+        }
+
+        setInterval(updateData, 2000); // Refresh every 2 seconds
+        updateData();
+    </script>
+</body>
+</html>
