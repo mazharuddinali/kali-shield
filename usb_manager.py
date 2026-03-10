@@ -1,40 +1,25 @@
 import os
+import subprocess
 
-USB_PATH = "/sys/bus/usb/devices"
+UDEV_RULE_PATH = "/etc/udev/rules.d/99-kali-shield.rules"
 
-def get_usb_devices():
-    """Scans for connected USB devices."""
-    devices = []
-    if not os.path.exists(USB_PATH):
-        return []
-
-    for device in os.listdir(USB_PATH):
-        # We only care about root/hub devices (simplified for stability)
-        path = os.path.join(USB_PATH, device)
-        if os.path.exists(os.path.join(path, 'product')):
-            try:
-                with open(os.path.join(path, 'product'), 'r') as f:
-                    name = f.read().strip()
-                with open(os.path.join(path, 'authorized'), 'r') as f:
-                    status = f.read().strip()
-                
-                devices.append({
-                    "id": device,
-                    "name": name,
-                    "status": "Active" if status == "1" else "Blocked"
-                })
-            except:
-                continue
-    return devices
-
-def toggle_usb(device_id, action):
-    """Soft blocks (0) or Unblocks (1) a USB device."""
-    auth_path = os.path.join(USB_PATH, device_id, 'authorized')
-    value = '1' if action == 'unblock' else '0'
-    
+def set_global_lockdown(enable):
+    """Writes or removes the udev rule to block USBs proactively."""
     try:
-        with open(auth_path, 'w') as f:
-            f.write(value)
+        if enable:
+            # Create the rule that blocks on arrival
+            rule = 'ACTION=="add", SUBSYSTEM=="usb", ATTR{authorized}="0"'
+            with open(UDEV_RULE_PATH, "w") as f:
+                f.write(rule)
+        else:
+            # Remove the rule to allow default behavior
+            if os.path.exists(UDEV_RULE_PATH):
+                os.remove(UDEV_RULE_PATH)
+        
+        # Tell the kernel to reload the rules immediately
+        subprocess.run(["udevadm", "control", "--reload-rules"], check=True)
+        subprocess.run(["udevadm", "trigger"], check=True)
         return True
-    except PermissionError:
+    except Exception as e:
+        print(f"Error updating policy: {e}")
         return False

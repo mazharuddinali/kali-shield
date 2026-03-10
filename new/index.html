@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+k<!DOCTYPE html>
 <html>
 <head>
     <title>KALI SHIELD - CYBER DEFENSE</title>
@@ -6,35 +6,21 @@
         body { background: #0a0a0a; color: #00ff41; font-family: 'Courier New', monospace; padding: 20px; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .card { border: 1px solid #00ff41; padding: 15px; background: #000; box-shadow: 0 0 8px #00ff4144; }
-        /* Policy card styling */
-        .policy-card { grid-column: span 2; border-color: #ff003c; margin-bottom: 20px; text-align: center; }
         h2 { border-bottom: 1px solid #00ff41; padding-bottom: 10px; margin-top: 0; font-size: 1.2em; }
         table { width: 100%; font-size: 11px; border-collapse: collapse; }
         th { text-align: left; color: #00bcd4; padding: 5px; }
         td { padding: 5px; border-bottom: 1px solid #1a1a1a; }
         .loc-tag { color: #ff9d00; font-weight: bold; }
         input { background: #111; border: 1px solid #00ff41; color: #00ff41; padding: 5px; width: 60px; }
-        button { background: #00ff41; color: #000; border: none; padding: 6px 10px; cursor: pointer; font-weight: bold; margin: 2px; }
+        button { background: #00ff41; color: #000; border: none; padding: 6px 10px; cursor: pointer; font-weight: bold; }
         button:hover { background: #fff; }
         .btn-deny { background: #ff003c; color: white; }
-        .btn-secure { background: #ff003c; color: white; padding: 10px 20px; }
         #log-box { background: #050505; color: #008f11; padding: 10px; height: 120px; overflow-y: auto; font-size: 11px; margin-top: 20px; border: 1px solid #333; line-height: 1.4; }
     </style>
 </head>
 <body>
     <h1 style="text-align:center;">🛡️ KALI SHIELD: ADVANCED DEFENSE SYSTEM</h1>
-
-    <div class="card policy-card">
-        <h2 style="color: #ff003c; border-color: #ff003c;">🚨 SYSTEM SECURITY POLICY (PROACTIVE)</h2>
-        <div style="padding: 10px;">
-            <span id="policy-display">CURRENT STATUS: <strong style="color: #00ff41;">STANDARD (ALLOW ON ARRIVAL)</strong></span>
-            <br><br>
-            <button class="btn-secure" onclick="setPolicy('secure')">ENABLE GLOBAL LOCKDOWN</button>
-            <button onclick="setPolicy('open')" style="background:#444; color:white; padding: 10px 20px;">RESTORE DEFAULT</button>
-        </div>
-        <p style="font-size: 10px; color: #888;">* Secure mode blocks all USB devices at the kernel level before drivers initialize.</p>
-    </div>
-
+    
     <div class="grid">
         <div class="card">
             <h2>🔥 FIREWALL CONTROL</h2>
@@ -68,42 +54,17 @@
     <div id="log-box">System Initialized... Waiting for events.</div>
 
     <script>
-        // NEW: Function to trigger proactive lockdown
-        function setPolicy(mode) {
-            fetch('/api/global_policy', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({status: mode})
-            })
-            .then(r => r.json())
-            .then(d => {
-                const display = document.getElementById('policy-display');
-                if(mode === 'secure') {
-                    display.innerHTML = 'CURRENT STATUS: <strong style="color: #ff003c;">SECURE (BLOCK ON ARRIVAL)</strong>';
-                } else {
-                    display.innerHTML = 'CURRENT STATUS: <strong style="color: #00ff41;">STANDARD (ALLOW ON ARRIVAL)</strong>';
-                }
-                updateLogs(); // Refresh logs to show policy change
-            });
-        }
-
         function fw(action) {
             const port = document.getElementById('port-num').value;
             fetch('/api/firewall', {
-                method: 'POST',
+                method: 'POST', 
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({port: port, action: action})
             }).then(r => r.json()).then(d => { document.getElementById('fw-status').innerText = d.message; });
         }
 
-        function updateLogs() {
-            fetch('/api/logs').then(r => r.json()).then(data => {
-                const logBox = document.getElementById('log-box');
-                logBox.innerHTML = data.reverse().join('<br>');
-            });
-        }
-
         function updateData() {
+            // Update Traffic
             fetch('/api/traffic').then(r => r.json()).then(data => {
                 const b = document.getElementById('traffic-body');
                 b.innerHTML = data.slice(-8).map(p => `
@@ -114,6 +75,7 @@
                     </tr>`).join('');
             });
 
+            // Update USB
             fetch('/api/usb').then(r => r.json()).then(data => {
                 const b = document.getElementById('usb-body');
                 b.innerHTML = data.map(d => `
@@ -125,7 +87,11 @@
                         ${d.status=='Active'?'DISABLE':'ENABLE'}</button></td>
                     </tr>`).join('');
             });
-            updateLogs();
+
+            // Update Logs
+            fetch('/api/logs').then(r => r.json()).then(data => {
+                document.getElementById('log-box').innerHTML = data.reverse().join('<br>');
+            });
         }
 
         function usbCtrl(id, action) {
@@ -136,7 +102,7 @@
             }).then(() => updateData());
         }
 
-        setInterval(updateData, 2000);
+        setInterval(updateData, 2000); // Refresh every 2 seconds
         updateData();
     </script>
 </body>

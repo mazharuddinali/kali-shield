@@ -12,10 +12,9 @@ app = Flask(__name__)
 
 # --- CONFIGURATION ---
 LOG_FILE = "kali_shield.log"
-UDEV_RULE_PATH = "/etc/udev/rules.d/99-kali-shield.rules" # Path for proactive rule
 packet_log = deque(maxlen=50)
-geo_cache = {}
-INTERFACE = "eth0" 
+geo_cache = {} # Stores IP locations to avoid repeat API calls
+INTERFACE = "eth0" # Change to wlan0 if using Wi-Fi
 
 def log_event(category, message):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -24,36 +23,16 @@ def log_event(category, message):
         f.write(entry + "\n")
     return entry
 
-# --- NEW: PROACTIVE USB POLICY LOGIC ---
-def update_udev_policy(block_all=True):
-    """Creates or removes a udev rule to block USBs the instant they are plugged in."""
-    try:
-        if block_all:
-            # This rule tells the kernel: if a USB is added, set authorized to 0 immediately
-            rule = 'ACTION=="add", SUBSYSTEM=="usb", ATTR{authorized}="0"'
-            with open(UDEV_RULE_PATH, "w") as f:
-                f.write(rule)
-            log_event("POLICY", "Proactive USB Lockdown ENABLED (Block on arrival)")
-        else:
-            if os.path.exists(UDEV_RULE_PATH):
-                os.remove(UDEV_RULE_PATH)
-            log_event("POLICY", "Proactive USB Lockdown DISABLED (Allow by default)")
-        
-        # Reload udev rules so the kernel recognizes the change
-        subprocess.run(["udevadm", "control", "--reload-rules"], check=True)
-        # Trigger applies it to devices already plugged in if necessary
-        subprocess.run(["udevadm", "trigger"], check=True)
-        return True
-    except Exception as e:
-        log_event("ERROR", f"Failed to update policy: {e}")
-        return False
-
 def get_ip_location(ip):
+    """Queries a Geo-IP API for the origin of an IP address."""
     if ip in ["127.0.0.1", "localhost"] or ip.startswith("192.168.") or ip.startswith("10."):
         return "Local Network"
+    
     if ip in geo_cache:
         return geo_cache[ip]
+
     try:
+        # Free API (ip-api.com) - No key required for low volume
         resp = requests.get(f"http://ip-api.com/json/{ip}", timeout=1).json()
         if resp.get('status') == 'success':
             loc = f"{resp.get('city')}, {resp.get('countryCode')}"
@@ -69,6 +48,7 @@ def process_packet(packet):
         src_ip = packet[IP].src
         proto = "TCP" if TCP in packet else "UDP" if UDP in packet else "Other"
         port = packet[packet.payload.name].dport if hasattr(packet[packet.payload.name], 'dport') else "-"
+        
         entry = {
             "time": time.strftime("%H:%M:%S"),
             "src": src_ip,
@@ -86,14 +66,6 @@ def start_sniffing():
 @app.route('/')
 def index():
     return render_template('index.html')
-
-# --- NEW ROUTE: TRIGGER PROACTIVE POLICY ---
-@app.route('/api/global_policy', methods=['POST'])
-def global_policy():
-    data = request.json
-    status = data.get('status') # Expecting 'secure' or 'open'
-    success = update_udev_policy(block_all=(status == 'secure'))
-    return jsonify({"message": "System Policy Updated" if success else "Error updating policy"})
 
 @app.route('/api/traffic')
 def get_traffic():
@@ -119,7 +91,7 @@ def firewall_control():
         msg = log_event("Firewall", f"{action.upper()}ED port {port}")
         return jsonify({"message": msg})
     except:
-        return jsonify({"message": "Error: Rule conflict or permission issue"}), 500
+        return jsonify({"message": "Error: Rule might already exist/not exist"}), 500
 
 @app.route('/api/usb')
 def get_usb():
